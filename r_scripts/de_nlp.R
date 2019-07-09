@@ -102,6 +102,8 @@ de_unfiltered %>%
   xlab(NULL) +
   coord_flip()
 
+ggsave("~/owncloud/digiscape/presentations/de/de_unigram_unfiltered.pdf")
+
 
 # Generate list of documents that reference "agriculture" or "farming".
 
@@ -128,6 +130,8 @@ de_filtered %>%
   xlab(NULL) +
   coord_flip()
 
+ggsave("~/owncloud/digiscape/presentations/de/de_unigram_filtered.pdf")
+
 # Generate bigrams for unfiltered submissions.
 
 require(tidyr)
@@ -153,6 +157,8 @@ de_bigram %>%
   xlab(NULL) +
   coord_flip()
 
+ggsave("~/owncloud/digiscape/presentations/de/de_bigram_unfiltered.pdf")
+
 # Plot 20 most frequently used bigrams - filtered submissions.
 
 de_bigram_agric <- de_agric %>%
@@ -174,6 +180,8 @@ de_bigram_agric %>%
   xlab(NULL) +
   coord_flip()
 
+ggsave("~/owncloud/digiscape/presentations/de/de_bigram_filtered.pdf")
+
 # Perform sentiment analysis.
 
 de_filtered %>% 
@@ -190,6 +198,8 @@ de_filtered %>%
   facet_wrap(~ sentiment, scales = "free") +
   coord_flip()
 
+ggsave("~/owncloud/digiscape/presentations/de/de_sentiment_filtered.pdf")
+
 de_unfiltered %>% 
   # join sentiment library 
   inner_join(get_sentiments("bing") %>% filter(word != "cloud")) %>%
@@ -202,6 +212,8 @@ de_unfiltered %>%
   geom_col(show.legend = FALSE) +
   facet_wrap(~ sentiment, scales = "free") +
   coord_flip()
+
+ggsave("~/owncloud/digiscape/presentations/de/de_sentiment_unfiltered.pdf")
 
 # Do topic modelling with LDA.
 
@@ -230,5 +242,238 @@ de_model_filtered <- LDA(de_filtered_dtm, method = "Gibbs", k = 5, control = lis
 
 # Display topic modelling results with 10 most frequently used words.
 
-get_terms(de_model_unfiltered, 10)
-get_terms(de_model_filtered, 10)
+de_topics_unfiltered <- tidy(de_model_unfiltered, matrix = "beta")
+de_topics_filtered <- tidy(de_model_filtered, matrix = "beta")
+
+
+de_top_terms_unfiltered <- de_topics_unfiltered %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+de_top_terms_unfiltered %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+ggsave("~/owncloud/digiscape/presentations/de/de_top10_topics_unfiltered.pdf")
+
+de_top_terms_filtered <- de_topics_filtered %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+de_top_terms_filtered %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+ggsave("~/owncloud/digiscape/presentations/de/de_top10_topics_filtered.pdf")
+
+# wordvector analysis
+
+# find skipgrams.
+
+# invoke sliding windows function to id skipgrams
+
+slide_windows <- function(tbl, doc_var, window_size) {
+  # each word gets a skipgram (window_size words) starting on the first
+  # e.g. skipgram 1 starts on word 1, skipgram 2 starts on word 2
+  
+  each_total <- tbl %>% 
+    group_by(!!doc_var) %>% 
+    mutate(doc_total = n(),
+           each_total = pmin(doc_total, window_size, na.rm = TRUE)) %>%
+    pull(each_total)
+  
+  rle_each <- rle(each_total)
+  counts <- rle_each[["lengths"]]
+  counts[rle_each$values != window_size] <- 1
+  
+  # each word get a skipgram window, starting on the first
+  # account for documents shorter than window
+  id_counts <- rep(rle_each$values, counts)
+  window_id <- rep(seq_along(id_counts), id_counts)
+  
+  
+  # within each skipgram, there are window_size many offsets
+  indexer <- (seq_along(rle_each[["values"]]) - 1) %>%
+    map2(rle_each[["values"]] - 1,
+         ~ seq.int(.x, .x + .y)) %>% 
+    map2(counts, ~ rep(.x, .y)) %>%
+    flatten_int() +
+    window_id
+  
+  tbl[indexer, ] %>%
+    bind_cols(data_frame(window_id)) %>%
+    group_by(window_id) %>%
+    filter(n_distinct(!!doc_var) == 1) %>%
+    ungroup
+}
+
+# create corpus subset
+
+de_wv_filtered <- de_clean %>%
+  inner_join(de_filtered %>% distinct(doc_id))
+
+# Compute word vectors. 
+
+require(widyr)
+require(tictoc)
+
+# Determine pmi values for each pair of words. Values indicate liklihood of words appearing together or not.
+# Takes a very long time (19 hours).
+
+data("stop_words")
+
+tic("skipgrams")
+de_wv_filtered_pmi <- de_wv_filtered %>%
+  unnest_tokens(word, text) %>%
+  # remove useless entries
+  filter(!str_detect(word, "[0-9]"),
+         !str_detect(word, "australia"),
+         !str_detect(word, ".au"),
+         !str_detect(word, "nsw"),
+         !str_detect(word, "\\b[a-z]\\b")) %>%
+  anti_join(stop_words) %>%
+  add_count(word) %>%
+  filter(n > 20) %>%
+  select(-n) %>%
+  slide_windows(quo(doc_id), 8) %>%
+  pairwise_pmi(word, window_id)
+toc()
+
+require(irlba)
+
+tic("word vectors")
+de_word_vectors_filtered <- de_wv_filtered_pmi %>%
+  widely_svd(item1, item2, pmi, nv = 256, maxit = 1000)
+toc()
+
+# Check nearest synonyms.
+
+nearest_synonyms <- function(df, token) {
+  df %>%
+    widely(~ . %*% (.[token, ]), sort = TRUE)(item1, dimension, value) %>%
+    select(-item2)
+}
+
+de_word_vectors_filtered %>% nearest_synonyms("digital")
+
+de_word_vectors_filtered %>% nearest_synonyms("economy")
+
+de_word_vectors_filtered %>% nearest_synonyms("agriculture")
+
+
+# Check analogies.
+
+analogy <- function(df, token1, token2, token3) {
+  df %>%
+    widely(~ . %*% (.[token1, ] - .[token2, ] + .[token3, ]), sort = TRUE)(item1, dimension, value) %>%
+    select(-item2)
+}
+
+de_word_vectors_filtered %>%
+  analogy("digital", "economy", "agriculture")
+
+# Do PCA.
+
+tic("principal component analysis")
+de_word_vectors_filtered %>%
+  filter(dimension <= 12) %>%
+  group_by(dimension) %>%
+  top_n(12, abs(value)) %>%
+  ungroup %>%
+  mutate(item1 = reorder(item1, value)) %>%
+  group_by(dimension, item1) %>%
+  arrange(desc(value)) %>%
+  ungroup %>%
+  mutate(item1 = factor(paste(item1, dimension, sep = "__"), 
+                        levels = rev(paste(item1, dimension, sep = "__"))),
+         dimension = factor(paste0("Dimension ", dimension),
+                            levels = paste0("Dimension ", as.factor(1:24)))) %>%
+  ggplot(aes(item1, value, fill = dimension)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~dimension, scales = "free_y", ncol = 4) +
+  scale_x_discrete(labels = function(x) gsub("__.+$", "", x)) +
+  coord_flip() +
+  labs(x = NULL, y = "Value",
+       title = "First 12 principal components",
+       subtitle = "Top words contributing to the components that explain the most variation")
+toc()
+
+ggsave("~/owncloud/digiscape/presentations/de/de_wv_pca_filtered.pdf")
+
+
+# unfiltered
+
+tic("skipgrams")
+de_wv_unfiltered_pmi <- de_clean %>%
+  unnest_tokens(word, text) %>%
+  # remove useless entries
+  filter(!str_detect(word, "[0-9]"),
+         !str_detect(word, "australia"),
+         !str_detect(word, ".au"),
+         !str_detect(word, "nsw"),
+         !str_detect(word, "\\b[a-z]\\b")) %>%
+  anti_join(stop_words) %>%
+  add_count(word) %>%
+  filter(n > 20) %>%
+  select(-n) %>%
+  slide_windows(quo(doc_id), 8) %>%
+  pairwise_pmi(word, window_id)
+toc()
+
+tic("word vectors")
+de_word_vectors_unfiltered <- de_wv_filtered_pmi %>%
+  widely_svd(item1, item2, pmi, nv = 256, maxit = 1000)
+toc()
+
+# Check nearest synonyms.
+
+de_word_vectors_unfiltered %>% nearest_synonyms("digital")
+
+de_word_vectors_unfiltered %>% nearest_synonyms("economy")
+
+de_word_vectors_unfiltered %>% nearest_synonyms("agriculture")
+
+
+# Check analogies.
+
+
+de_word_vectors_unfiltered %>%
+  analogy("digital", "economy", "agriculture")
+
+# Do PCA.
+
+tic("principal component analysis")
+de_word_vectors_unfiltered %>%
+  filter(dimension <= 12) %>%
+  group_by(dimension) %>%
+  top_n(12, abs(value)) %>%
+  ungroup %>%
+  mutate(item1 = reorder(item1, value)) %>%
+  group_by(dimension, item1) %>%
+  arrange(desc(value)) %>%
+  ungroup %>%
+  mutate(item1 = factor(paste(item1, dimension, sep = "__"), 
+                        levels = rev(paste(item1, dimension, sep = "__"))),
+         dimension = factor(paste0("Dimension ", dimension),
+                            levels = paste0("Dimension ", as.factor(1:24)))) %>%
+  ggplot(aes(item1, value, fill = dimension)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~dimension, scales = "free_y", ncol = 4) +
+  scale_x_discrete(labels = function(x) gsub("__.+$", "", x)) +
+  coord_flip() +
+  labs(x = NULL, y = "Value",
+       title = "First 12 principal components",
+       subtitle = "Top words contributing to the components that explain the most variation")
+toc()
+
+ggsave("~/owncloud/digiscape/presentations/de/de_wv_pca_unfiltered.pdf")

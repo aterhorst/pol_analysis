@@ -102,6 +102,8 @@ da_unfiltered %>%
   xlab(NULL) +
   coord_flip()
 
+ggsave("~/owncloud/digiscape/presentations/da/da_unfiltered_unigrams.pdf")
+
 
 # Generate list of documents that reference "agriculture" or "farming".
 
@@ -128,6 +130,8 @@ da_filtered %>%
   xlab(NULL) +
   coord_flip()
 
+ggsave("~/owncloud/digiscape/presentations/da/da_filtered_unigrams.pdf")
+
 # Generate bigrams for unfiltered submissions.
 
 require(tidyr)
@@ -153,6 +157,8 @@ da_bigram %>%
   xlab(NULL) +
   coord_flip()
 
+ggsave("~/owncloud/digiscape/presentations/da/da_unfiltered_bigrams.pdf")
+
 # Plot 20 most frequently used bigrams - filtered submissions.
 
 da_bigram_agric <- da_agric %>%
@@ -174,6 +180,8 @@ da_bigram_agric %>%
   xlab(NULL) +
   coord_flip()
 
+ggsave("~/owncloud/digiscape/presentations/da/da_filtered_bigrams.pdf")
+
 # Perform sentiment analysis.
 
 da_filtered %>% 
@@ -190,6 +198,8 @@ da_filtered %>%
   facet_wrap(~ sentiment, scales = "free") +
   coord_flip()
 
+ggsave("~/owncloud/digiscape/presentations/da/da_filtered_sentiment.pdf")
+
 da_unfiltered %>% 
   # join sentiment library 
   inner_join(get_sentiments("bing") %>% filter(word != "cloud")) %>%
@@ -202,6 +212,8 @@ da_unfiltered %>%
   geom_col(show.legend = FALSE) +
   facet_wrap(~ sentiment, scales = "free") +
   coord_flip()
+
+ggsave("~/owncloud/digiscape/presentations/da/da_unfiltered_sentiment.pdf")
 
 # Do topic modelling with LDA.
 
@@ -230,5 +242,37 @@ da_model_filtered <- LDA(da_filtered_dtm, method = "Gibbs", k = 5, control = lis
 
 # Display topic modelling results with 10 most frequently used words.
 
-get_terms(da_model_unfiltered, 10)
-get_terms(da_model_filtered, 10)
+da_topics_unfiltered <- tidy(da_model_unfiltered, matrix = "beta")
+da_topics_filtered <- tidy(da_model_filtered, matrix = "beta")
+
+
+da_top_terms_unfiltered <- da_topics_unfiltered %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+da_top_terms_unfiltered %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+ggsave("~/owncloud/digiscape/presentations/da/da_top10_topics_unfiltered.pdf")
+
+da_top_terms_filtered <- da_topics_filtered %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+da_top_terms_filtered %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+ggsave("~/owncloud/digiscape/presentations/da/da_top10_topics_filtered.pdf")
+
