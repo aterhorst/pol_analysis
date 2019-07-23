@@ -121,8 +121,12 @@ ts_stopwords <- data.frame(word = c("trade",
 require(tidytext)
 require(qdapDictionaries)
 
+comp_terms <- read
+
 dictionary <- as.data.frame(GradyAugmented, stringsAsFactors = F) %>% 
   select(word = GradyAugmented, everything())
+
+
 
 unigrams <- clean_corpus %>% 
   # tokenise unigrams
