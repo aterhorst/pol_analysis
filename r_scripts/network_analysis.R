@@ -137,7 +137,7 @@ net <- ggraph(similarity_ties, layout = "circle") +
                  angle = case_when(lo[,2] > 0 & lo[,1] > 0 ~ angle$degree, 
                                    lo[,2] < 0 & lo[,1] > 0 ~ angle$degree,
                                    lo[,1] == 1 ~angle$degree,
-                                  TRUE ~ angle$degree - 180)) +
+                                   TRUE ~ angle$degree - 180)) +
   theme(panel.background = element_blank(),
         panel.grid = element_blank(),
         axis.title = element_blank(),
@@ -146,4 +146,3 @@ net <- ggraph(similarity_ties, layout = "circle") +
   coord_cartesian(xlim=c(-1.275,1.275), ylim=c(-1.275,1.275))
 
 ggsave("~/owncloud/digiscape/presentations/network_analysis.pdf", width = 8, height = 8, units = "in", net)
-

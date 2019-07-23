@@ -107,7 +107,7 @@ nbn_stopwords <- data.frame(word = c("nbn",
                                      "areas",
                                      "rollout",
                                      "co"),
-                             stringsAsFactors = F)
+                            stringsAsFactors = F)
 
 ts_stopwords <- data.frame(word = c("trade",
                                     "systems",
@@ -153,7 +153,7 @@ bigrams <- clean_corpus %>%
   inner_join(inquiry_id)
 
 # plot top 20 unigrams
-  
+
 require(gridExtra)
 require(ggpubr)
 
@@ -378,7 +378,7 @@ sent_ag <- unigrams %>%
   xlab(NULL) +
   ggtitle("Agricultural innovation") +
   theme(plot.title = element_text(hjust = 0.5))
-  
+
 sent_da <- unigrams %>%
   filter(inquiry == "data access") %>%
   anti_join(da_stopwords) %>%
