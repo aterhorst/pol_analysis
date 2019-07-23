@@ -74,7 +74,6 @@ tic("tidy corpus")
 tidy_corpus <- clean_corpus %>%
   # tokenise
   unnest_tokens(word, text) %>%
-<<<<<<< HEAD
   # get rid of numbers and nonsensical words
   filter(!str_detect(word, "[0-9]+"), word %in% dictionary$word) %>%
   # get rid of stop words
@@ -85,37 +84,10 @@ tidy_corpus <- clean_corpus %>%
   anti_join(data.frame(word = tolower(month.name), stringsAsFactors = F)) 
 toc()  
 
-=======
-  # get rid of stop words
-  anti_join(get_stopwords()) %>%
-  # get rid of underscores
-  mutate(word = str_replace_all(word, "_", ""),
-         word = ifelse(word == "", NA, word)) %>%
-  drop_na() %>%
-  # get rid of numbers
-  filter(!str_detect(word, "[0-9]+")) %>%
-  # use only dictionary terms
-  inner_join(dictionary)
-toc()  
-
-tic("tf_idf")
-tf_idf_filter <- tidy_corpus %>%
-  count(doc_id, word) %>%
-  # compute tf_idf
-  bind_tf_idf(word, doc_id, n) %>%
-  filter(tf_idf < quantile(tf_idf, 0.001)) %>%
-  distinct(word)
-toc()
-
->>>>>>> e8dc9c0ba685b5331524df5ded2de14d3021dd11
 # create a document-term matrix
 
 tic("generate dtm")
 corpus_dtm <- tidy_corpus %>%
-<<<<<<< HEAD
-=======
-  #anti_join(tf_idf_filter) %>%
->>>>>>> e8dc9c0ba685b5331524df5ded2de14d3021dd11
   count(doc_id, word) %>%
   cast_dtm(doc_id, word, n)
 toc()
@@ -140,11 +112,7 @@ FindTopicsNumber_plot(how_many_topics)
 
 require(topicmodels)
 
-<<<<<<< HEAD
 model <- LDA(corpus_dtm, method = "Gibbs", k = 18, control = list(seed = 1234, best = T))
-=======
-model <- LDA(corpus_dtm, method = "Gibbs", k = 16, control = list(seed = 1234, best = T))
->>>>>>> e8dc9c0ba685b5331524df5ded2de14d3021dd11
 
 # explore topic model (beta, gamma values)
 
@@ -178,17 +146,10 @@ gamma_terms %>%
   top_n(10, gamma) %>%
   ggplot(aes(topic, gamma, label = terms, fill = topic)) +
   geom_col(show.legend = FALSE) +
-<<<<<<< HEAD
   geom_text(hjust = 0, nudge_y = 0.005, size = 3.5) +
   coord_flip() +
   scale_y_continuous(expand = c(0,0),
                      limits = c(0, 0.55),
-=======
-  geom_text(hjust = 0, nudge_y = 0.005, size = 4) +
-  coord_flip() +
-  scale_y_continuous(expand = c(0,0),
-                     limits = c(0, 0.50),
->>>>>>> e8dc9c0ba685b5331524df5ded2de14d3021dd11
                      labels = percent_format()) +
   labs(x = NULL, y = expression(gamma)) +
   theme(text = element_text(size = 14))
