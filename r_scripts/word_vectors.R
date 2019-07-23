@@ -1,55 +1,65 @@
-###########################################
-#                                         #
-#       Word vector analysis of PDF       #
-#   submissions to various inquiries      #
-#      related to agriculture and         #     
-#          the digital economy            #
-#           Version 20190214              #
-#           (c) A Terhorst                #
-#                                         #
-###########################################
+#################################################
+#                                               #
+#             Digiscape Word Vectors            #
+#               Version 20190710                #
+#                Andrew Terhorst                #
+#                                               #
+#################################################
 
-# ********** Compile corpora ********** #
+# read submissions
 
-require(tidyverse)
-require(tidyr)
 require(tictoc)
+require(tidyverse)
+require(readtext)
 
-# Run separate scripts for different corpora. 
+data_dir <- "~/ownCloud/pol_analysis/submissions"
 
-source("~/ownCloud/digiscape/r_scripts/ts_nlp.R")
-source("~/ownCloud/digiscape/r_scripts/da_nlp.R")
-source("~/ownCloud/digiscape/r_scripts/de_nlp.R")
-source("~/ownCloud/digiscape/r_scripts/nbn_nlp.R")
-source("~/ownCloud/digiscape/r_scripts/ag_nlp.R")
-source("~/ownCloud/digiscape/r_scripts/dd_nlp.R")
+tic("read pdfs")
+raw_corpus <- readtext(paste0(data_dir, "/*"))
+toc()
 
-# Create merged corpus from individual corpora. Raw text.
+# do some preliminary cleaning
 
-merged_corpus <- bind_rows(ts_clean,
-                           da_clean,
-                           de_clean,
-                           nbn_clean,
-                           ag_clean,
-                           dd_clean)
+require(textclean)
 
-# Extract relevant docs (use pre-processed data file "submissions_list.csv").
+tic("clean corpus")
+clean_corpus <- raw_corpus %>% 
+  # use textclean functions
+  mutate(text = replace_non_ascii(text), # get rid of weird characters
+         text = replace_html(text), # remove html
+         text = replace_contraction(text), # remove apostrophes
+         text = replace_number(text, remove = TRUE), # take out numbers
+         doc_id = str_squish(str_replace(doc_id, " .pdf", "")), 
+         doc_id = str_squish(str_replace(doc_id, ".pdf", "")),
+         doc_id = str_squish(str_replace(doc_id, ".PDF", "")),
+         # group sub-documents together by trimming names
+         doc_id = case_when(str_detect(doc_id, "ag_") ~ strtrim(doc_id, 10),
+                            str_detect(doc_id, "dd_") ~ strtrim(doc_id, 10),
+                            str_detect(doc_id, "de_") ~ strtrim(doc_id, 10),
+                            str_detect(doc_id, "ts_") ~ strtrim(doc_id, 10),
+                            str_detect(doc_id, "nbn_") ~ strtrim(doc_id, 11),
+                            str_detect(doc_id, "da_sub_dr") ~ strtrim(doc_id, 13),
+                            str_detect(doc_id, "da_sub") ~ strtrim(doc_id, 10),
+                            TRUE ~ doc_id)) %>%
+  # extract submissions referencing digital ag tech
+  filter(case_when(str_detect(doc_id, "ag_") ~ str_detect(text, "digit"),
+                   TRUE ~ str_detect(text, "agri|farm"))) 
+toc()
 
-submissions <- read.csv("~/owncloud/digiscape/submissions/submissions_list.csv", stringsAsFactors = F, header = T)
+# total number of documents in corpus
 
-corpus_filtered <- merged_corpus %>%
-  inner_join(submissions %>% select(doc_id), by = "doc_id")
+nrow(clean_corpus %>% distinct(doc_id))
 
-# Tidy up corpus.
+doc_counts <- clean_corpus %>%
+  mutate(inquiry = case_when(str_detect(doc_id, "ag_") ~ "agricultural innovation",
+                             str_detect(doc_id, "da_") ~ "data access",
+                             str_detect(doc_id, "de_") ~ "digital economy strategy",
+                             str_detect(doc_id, "dd_") ~ "digital delivery",
+                             str_detect(doc_id, "nbn_") ~ "nbn roll-out",
+                             str_detect(doc_id, "ts_") ~ "trade systems")) %>%
+  group_by(inquiry) %>%
+  count()
 
-corpus <- as_tibble(corpus_filtered) %>%
-  # clean doc_id entries
-  mutate(doc_id = str_replace_all(doc_id, "\\.pdf|\\_attach1|\\_attach2|\\_attachment|\\.1|\\_attach|\\_att1", ""),
-         doc_id = str_squish(doc_id))
-
-# ********** Do word vector analysis ********** #
-
-# Find skipgrams.
 
 # Invoke sliding windows function to id skipgrams
 
@@ -88,45 +98,51 @@ slide_windows <- function(tbl, doc_var, window_size) {
     ungroup
 }
 
-# Compute word vectors. 
+# compute word vectors. 
+
+# create tidy corpus
 
 require(tidytext)
 require(widyr)
+require(qdapDictionaries)
 
-# Determine pmi values for each pair of words. Values indicate liklihood of words appearing together or not.
-# Takes a very long time (19 hours).
-
-data("stop_words")
+dictionary <- as.data.frame(GradyAugmented, stringsAsFactors = F) %>% 
+  select(word = GradyAugmented, everything())
 
 tic("skipgrams")
-corpus_pmi <- corpus %>%
+pmi_corpus <- clean_corpus %>%
+  # tokenise
   unnest_tokens(word, text) %>%
-  # remove useless entries
-  filter(!str_detect(word, "[0-9]"),
-         !str_detect(word, "australia"),
-         !str_detect(word, ".au"),
-         !str_detect(word, "nsw"),
-         !str_detect(word, "\\b[a-z]\\b")) %>%
+  # get rid of numbers
+  filter(!str_detect(word, "[0-9]+"), word %in% dictionary$word) %>%
+  # get rid of stopwords
   anti_join(stop_words) %>%
+  anti_join(data.frame(word = letters, stringsAsFactors = F)) %>%
+  anti_join(data.frame(word = tolower(month.name), stringsAsFactors = F)) %>%
   add_count(word) %>%
-  filter(n > 20) %>%
+  filter(n > 5) %>%
   select(-n) %>%
   slide_windows(quo(doc_id), 8) %>%
   pairwise_pmi(word, window_id)
 toc()
 
-corpus_pmi
 
-# Find word vectors from pmi values.
+# find word vectors from pmi values.
 
 require(irlba)
 
 tic("word vectors")
-tidy_word_vectors <- corpus_pmi %>%
+tidy_word_vectors <- pmi_corpus %>%
   widely_svd(item1, item2, pmi, nv = 256, maxit = 1000)
 toc()
 
-# Check nearest synonyms.
+# find proximal words.
+
+require(gridExtra)
+require(ggpubr)
+require(grid)
+
+col <- get_palette(palette = "default", 4)
 
 nearest_synonyms <- function(df, token) {
   df %>%
@@ -134,14 +150,53 @@ nearest_synonyms <- function(df, token) {
     select(-item2)
 }
 
-tidy_word_vectors %>% nearest_synonyms("digital")
 
-tidy_word_vectors %>% nearest_synonyms("economy")
+prox_digit <- tidy_word_vectors %>% nearest_synonyms("digital") %>%
+  filter(!item1 == "digital") %>%
+  top_n(20, value) %>%
+  ggplot(aes(reorder(item1, value), value)) +
+  geom_col(fill = col[1]) +
+  coord_flip() +
+  xlab(NULL) +
+  ggtitle("Proximal words to *digital*") +
+  theme(plot.title = element_text(hjust = 0.5))
 
-tidy_word_vectors %>% nearest_synonyms("agriculture")
+prox_econ <- tidy_word_vectors %>% nearest_synonyms("economy") %>%
+  filter(!item1 == "economy") %>%
+  top_n(20, value) %>%
+  ggplot(aes(reorder(item1, value), value)) +
+  geom_col(fill = col[2]) +
+  coord_flip() +
+  xlab(NULL) +
+  ggtitle("Proximal words to *economy*") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+prox_ag <- tidy_word_vectors %>% nearest_synonyms("agriculture") %>%
+  filter(!item1 == "agriculture") %>%
+  top_n(20, value) %>%
+  ggplot(aes(reorder(item1, value), value)) +
+  geom_col(fill = col[3]) +
+  coord_flip() +
+  xlab(NULL) +
+  ggtitle("Proximal words to *agriculture*") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+prox_tech <- tidy_word_vectors %>% nearest_synonyms("technology") %>%
+  filter(!item1 == "technology") %>%
+  top_n(20, value) %>%
+  ggplot(aes(reorder(item1, value), value)) +
+  geom_col(fill = col[4]) +
+  coord_flip() +
+  xlab(NULL) +
+  ggtitle("Proximal words to *technology*") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+prox <- arrangeGrob(prox_digit, prox_econ, prox_ag, prox_tech, nrow = 2)
+
+ggsave("~/owncloud/digiscape/presentations/proximal_words.pdf", prox)
 
 
-# Check analogies.
+# check analogies.
 
 analogy <- function(df, token1, token2, token3) {
   df %>%
@@ -150,13 +205,14 @@ analogy <- function(df, token1, token2, token3) {
 }
 
 tidy_word_vectors %>%
-  analogy("digital", "economy", "agriculture")
+  analogy("digital", "technology", "agriculture")
 
-# Do PCA.
+
+# principal comonent analysis.
 
 tic("principal component analysis")
-tidy_word_vectors %>%
-  filter(dimension <= 24) %>%
+pca <- tidy_word_vectors %>%
+  filter(dimension <= 16) %>%
   group_by(dimension) %>%
   top_n(12, abs(value)) %>%
   ungroup %>%
@@ -173,7 +229,6 @@ tidy_word_vectors %>%
   facet_wrap(~dimension, scales = "free_y", ncol = 4) +
   scale_x_discrete(labels = function(x) gsub("__.+$", "", x)) +
   coord_flip() +
-  labs(x = NULL, y = "Value",
-       title = "First 24 principal components of the digital agricultural economy corpus",
-       subtitle = "Top words contributing to the components that explain the most variation")
+  labs(x = NULL, y = "Value")
+ggsave("~/owncloud/digiscape/presentations/word_vector_pca.pdf", pca)
 toc()
