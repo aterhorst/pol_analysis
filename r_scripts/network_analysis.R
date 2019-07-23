@@ -66,20 +66,24 @@ require(tidytext)
 require(tidyr)
 require(qdapDictionaries)
 
+comp_terms <- read.csv("https://raw.githubusercontent.com/aterhorst/pol_analysis/master/dictionaries/comp_terms_wikipedia.csv", stringsAsFactors = F)
+
 dictionary <- as.data.frame(GradyAugmented, stringsAsFactors = F) %>% 
-  select(word = GradyAugmented, everything())
+  select(word = GradyAugmented, everything()) %>%
+  bind_rows(comp_terms) %>%
+  distinct(word)
 
 
 tic("tidy corpus")
 tidy_corpus <- clean_corpus %>%
   # tokenise
   unnest_tokens(word, text) %>%
+  # get rid of numbers
+  filter(!str_detect(word, "[0-9]+"), word %in% dictionary$word) %>%
   # get rid of stop words
   anti_join(get_stopwords()) %>%
   anti_join(data.frame(word = letters, stringsAsFactors = F)) %>%
-  anti_join(data.frame(word = tolower(month.name), stringsAsFactors = F)) %>%
-  # get rid of numbers
-  filter(!str_detect(word, "[0-9]+"), word %in% dictionary$word)
+  anti_join(data.frame(word = tolower(month.name), stringsAsFactors = F)) 
 toc()  
 
 

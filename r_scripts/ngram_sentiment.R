@@ -74,7 +74,9 @@ custom_stopwords <- data.frame(word = c("government",
                                         "can",
                                         "cent",
                                         "new"), 
-                               stringsAsFactors = F)
+                               stringsAsFactors = F) %>%
+  bind_rows(data.frame(word = letters, stringsAsFactors = F),
+            data.frame(word = tolower(month.name), stringsAsFactors = F))
 
 ag_stopwords <- data.frame(word = c("agricultural",
                                     "innovation",
@@ -121,10 +123,12 @@ ts_stopwords <- data.frame(word = c("trade",
 require(tidytext)
 require(qdapDictionaries)
 
-comp_terms <- read
+comp_terms <- read.csv("https://raw.githubusercontent.com/aterhorst/pol_analysis/master/dictionaries/comp_terms_wikipedia.csv", stringsAsFactors = F)
 
 dictionary <- as.data.frame(GradyAugmented, stringsAsFactors = F) %>% 
-  select(word = GradyAugmented, everything())
+  select(word = GradyAugmented, everything()) %>%
+  bind_rows(comp_terms) %>%
+  distinct(word)
 
 
 unigrams <- clean_corpus %>% 
@@ -134,8 +138,7 @@ unigrams <- clean_corpus %>%
   filter(!str_detect(word, "[0-9]+"), word %in% dictionary$word) %>%
   # ditch superfluous words
   anti_join(get_stopwords()) %>%
-  anti_join(data.frame(word = letters, stringsAsFactors = F)) %>%
-  anti_join(data.frame(word = tolower(month.name), stringsAsFactors = F)) %>%
+  anti_join(custom_stopwords) %>%
   inner_join(inquiry_id)
 
 bigrams <- clean_corpus %>%
@@ -155,14 +158,7 @@ bigrams <- clean_corpus %>%
 require(gridExtra)
 require(ggpubr)
 
-col <- get_palette(palette = "default", 6)
-
-# plot top 20 unigrams
-  
-require(gridExtra)
-require(ggpubr)
-
-col <- get_palette(palette = "default", 6)
+col <- get_palette(palette = "default", 7)
 
 uni_ag <- unigrams %>%
   filter(inquiry == "agricultural innovation") %>%
@@ -247,7 +243,7 @@ uni_all <- unigrams %>%
   top_n(20) %>%
   mutate(word = reorder(word,n)) %>%
   ggplot(aes(word, n)) +
-  geom_col(fill = col[5]) +
+  geom_col(fill = col[7]) +
   xlab(NULL) +
   coord_flip() +
   ggtitle("Complete corpus subset") +
@@ -355,7 +351,7 @@ bi_all <- bigrams %>%
   top_n(10) %>%
   mutate(bigram = reorder(bigram,n)) %>%
   ggplot(aes(bigram, n)) +
-  geom_col(fill = col[5]) +
+  geom_col(fill = col[7]) +
   xlab(NULL) +
   coord_flip() +
   ggtitle("Complete corpus subset") +
