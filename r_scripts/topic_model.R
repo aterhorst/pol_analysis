@@ -67,8 +67,13 @@ require(tidytext)
 require(tidyr)
 require(qdapDictionaries)
 
+comp_terms <- read.csv("https://raw.githubusercontent.com/aterhorst/pol_analysis/master/dictionaries/comp_terms_wikipedia.csv", stringsAsFactors = F)
+
 dictionary <- as.data.frame(GradyAugmented, stringsAsFactors = F) %>% 
-  select(word = GradyAugmented, everything())
+  select(word = GradyAugmented, everything()) %>%
+  bind_rows(comp_terms) %>%
+  distinct(word)
+
 
 tic("tidy corpus")
 tidy_corpus <- clean_corpus %>%
