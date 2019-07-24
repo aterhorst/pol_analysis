@@ -106,6 +106,25 @@ require(tidytext)
 require(widyr)
 require(qdapDictionaries)
 
+custom_stopwords <- data.frame(word = c("government",
+                                        "inquiry",
+                                        "parliamentary",
+                                        "productivity",
+                                        "commission",
+                                        "department",
+                                        "joint",
+                                        "standing",
+                                        "committee",
+                                        "australia",
+                                        "australian",
+                                        "submission",
+                                        "can",
+                                        "cent",
+                                        "new"), 
+                               stringsAsFactors = F) %>%
+  bind_rows(data.frame(word = letters, stringsAsFactors = F),
+            data.frame(word = tolower(month.name), stringsAsFactors = F))
+
 comp_terms <- read.csv("https://raw.githubusercontent.com/aterhorst/pol_analysis/master/dictionaries/comp_terms_wikipedia.csv", stringsAsFactors = F)
 
 dictionary <- as.data.frame(GradyAugmented, stringsAsFactors = F) %>% 
@@ -122,8 +141,7 @@ pmi_corpus <- clean_corpus %>%
   filter(!str_detect(word, "[0-9]+"), word %in% dictionary$word) %>%
   # get rid of stopwords
   anti_join(stop_words) %>%
-  anti_join(data.frame(word = letters, stringsAsFactors = F)) %>%
-  anti_join(data.frame(word = tolower(month.name), stringsAsFactors = F)) %>%
+  anti_join(custom_stopwords) %>%
   add_count(word) %>%
   filter(n > 5) %>%
   select(-n) %>%

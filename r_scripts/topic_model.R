@@ -63,6 +63,25 @@ doc_counts <- clean_corpus %>%
 
 # create tidy corpus
 
+custom_stopwords <- data.frame(word = c("government",
+                                        "inquiry",
+                                        "parliamentary",
+                                        "productivity",
+                                        "commission",
+                                        "department",
+                                        "joint",
+                                        "standing",
+                                        "committee",
+                                        "australia",
+                                        "australian",
+                                        "submission",
+                                        "can",
+                                        "cent",
+                                        "new"), 
+                               stringsAsFactors = F) %>%
+  bind_rows(data.frame(word = letters, stringsAsFactors = F),
+            data.frame(word = tolower(month.name), stringsAsFactors = F))
+
 require(tidytext)
 require(tidyr)
 require(qdapDictionaries)
@@ -83,10 +102,7 @@ tidy_corpus <- clean_corpus %>%
   filter(!str_detect(word, "[0-9]+"), word %in% dictionary$word) %>%
   # get rid of stop words
   anti_join(get_stopwords()) %>%
-  # get rid of letters
-  anti_join(data.frame(word = letters, stringsAsFactors = F)) %>%
-  # get rid of months
-  anti_join(data.frame(word = tolower(month.name), stringsAsFactors = F)) 
+  anti_join(custom_stopwords)
 toc()  
 
 # create a document-term matrix
@@ -117,7 +133,9 @@ FindTopicsNumber_plot(how_many_topics)
 
 require(topicmodels)
 
+tic("lda")
 model <- LDA(corpus_dtm, method = "Gibbs", k = 18, control = list(seed = 1234, best = T))
+toc()
 
 # explore topic model (beta, gamma values)
 
@@ -158,3 +176,39 @@ gamma_terms %>%
                      labels = percent_format()) +
   labs(x = NULL, y = expression(gamma)) +
   theme(text = element_text(size = 14))
+
+# list documents with spread of topic probabilities.
+
+topic_map <- tidy(model, matrix = "gamma") %>%
+  spread(topic, gamma)
+
+# list documents showing top topic and potential ambiguity.
+
+top_topic <- tidy(model, matrix = "gamma") %>%
+  group_by(document) %>%
+  # rank topic probabilities from most to least probable by document
+  mutate(rank = rank(desc(gamma))) %>%
+  arrange(document,rank) %>%
+  # compute ratios: ((top) / (top - 1)) and ((top - 1) / (top - 2))
+  mutate(num_1 = case_when(rank == 1 ~ gamma,
+                           TRUE ~ 0),
+         den_1 = case_when(rank == 2 ~ gamma,
+                           TRUE ~0),
+         check_one = max(num_1)/max(den_1),
+         num_2 = case_when(rank == 2 ~ gamma,
+                           TRUE ~ 0),
+         den_2 = case_when(rank == 3 ~ gamma,
+                           TRUE ~ 0),
+         check_two = max(num_2)/max(den_2)) %>%
+  select(-c(den_1, den_2, num_1, num_2)) %>%
+  # show top topics with ratios
+  filter(rank == 1)
+
+
+# plot topic probabilities by document.
+
+tidy(model, matrix = "gamma") %>% 
+  mutate(title = reorder(document, gamma * topic )) %>% 
+  ggplot(aes(factor(topic), gamma)) + 
+  geom_boxplot() + 
+  facet_wrap(~ title)
