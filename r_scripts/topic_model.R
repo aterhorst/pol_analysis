@@ -184,11 +184,11 @@ topic_map <- tidy(model, matrix = "gamma") %>%
 
 # list documents showing top topic and potential ambiguity.
 
-top_topic <- tidy(model, matrix = "gamma") %>%
+top_topic <- as_tibble(tidy(model, matrix = "gamma") %>%
   group_by(document) %>%
   # rank topic probabilities from most to least probable by document
   mutate(rank = rank(desc(gamma))) %>%
-  arrange(document,rank) %>%
+  arrange(document, rank) %>%
   # compute ratios: ((top) / (top - 1)) and ((top - 1) / (top - 2))
   mutate(num_1 = case_when(rank == 1 ~ gamma,
                            TRUE ~ 0),
@@ -199,16 +199,11 @@ top_topic <- tidy(model, matrix = "gamma") %>%
                            TRUE ~ 0),
          den_2 = case_when(rank == 3 ~ gamma,
                            TRUE ~ 0),
-         check_two = max(num_2)/max(den_2)) %>%
-  select(-c(den_1, den_2, num_1, num_2)) %>%
+         check_two = max(num_2)/max(den_2),
+         doc_id = document) %>%
+    ungroup() %>%
+  select(-c(den_1, den_2, num_1, num_2, document)) %>%
   # show top topics with ratios
-  filter(rank == 1)
+  filter(rank == 1))
 
-
-# plot topic probabilities by document.
-
-tidy(model, matrix = "gamma") %>% 
-  mutate(title = reorder(document, gamma * topic )) %>% 
-  ggplot(aes(factor(topic), gamma)) + 
-  geom_boxplot() + 
-  facet_wrap(~ title)
+write.csv(top_topic, file = "/OSM/MEL/DPS_OI_Network/work/ownCloud/pol_analysis/topic mapping/topic_rank.csv", row.names = F)

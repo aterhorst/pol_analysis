@@ -142,9 +142,6 @@ pmi_corpus <- clean_corpus %>%
   # get rid of stopwords
   anti_join(stop_words) %>%
   anti_join(custom_stopwords) %>%
-  add_count(word) %>%
-  filter(n > 5) %>%
-  select(-n) %>%
   slide_windows(quo(doc_id), 8) %>%
   pairwise_pmi(word, window_id)
 toc()

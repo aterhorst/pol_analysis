@@ -115,8 +115,13 @@ cosine_similarity[abs(cosine_similarity) >= 0.5] <- 1
 require(igraph)
 require(tidygraph)
 
+topic_rank <- read.csv("~/owncloud/pol_analysis/topic mapping/topic_rank.csv", stringsAsFactors = F)
+
 all_ties <- simplify(graph_from_adjacency_matrix(cosine_similarity, mode = "undirected")) 
-similarity_ties <- as_tbl_graph(all_ties) 
+similarity_ties <- as_tbl_graph(all_ties) %>%
+  activate(nodes) %>%
+  inner_join(topic_rank, by = c("name" = "doc_id"))
+
 
 
 # plot similarity network
@@ -134,7 +139,7 @@ require(ggraph)
 
 net <- ggraph(similarity_ties, layout = "circle") +
   geom_edge_link() +
-  geom_node_point(colour = "light blue", size = 4) +
+  geom_node_point(aes(colour = factor(topic), alpha = gamma), size = 4) +
   geom_node_text(aes(label = name), 
                  size = 3, 
                  hjust = ifelse(lo[,1] > 0, -0.2, 1.2),
@@ -142,11 +147,17 @@ net <- ggraph(similarity_ties, layout = "circle") +
                                    lo[,2] < 0 & lo[,1] > 0 ~ angle$degree,
                                    lo[,1] == 1 ~angle$degree,
                                    TRUE ~ angle$degree - 180)) +
+  labs(colour = "Top topic") + 
+  labs(alpha = "Gamma value") +
+  guides(color = guide_legend(order = 1),
+         alpha = guide_legend(order = 2)) +
   theme(panel.background = element_blank(),
+        legend.background=element_blank(), 
+        legend.key = element_blank(),
         panel.grid = element_blank(),
         axis.title = element_blank(),
         axis.text = element_blank(),
         axis.ticks = element_blank()) +
-  coord_cartesian(xlim=c(-1.275,1.275), ylim=c(-1.275,1.275))
+  coord_cartesian(xlim=c(-1.275, 1.45), ylim=c(-1.275, 1.275))
 
-ggsave("~/owncloud/digiscape/presentations/network_analysis.pdf", width = 8, height = 8, units = "in", net)
+ggsave("~/owncloud/digiscape/presentations/network_analysis.pdf", net)
