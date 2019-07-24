@@ -57,6 +57,37 @@ inquiry_id <- clean_corpus %>%
                              str_detect(doc_id, "ts_") ~ "trade systems")) %>%
   distinct(doc_id, inquiry)
 
+total_docs <- raw_corpus %>%
+  select(doc_id) %>%
+  mutate(doc_id = str_squish(str_replace(doc_id, " .pdf", "")), 
+         doc_id = str_squish(str_replace(doc_id, ".pdf", "")),
+         doc_id = str_squish(str_replace(doc_id, ".PDF", "")),
+         inquiry = case_when(str_detect(doc_id, "ag_") ~ "agricultural innovation",
+                             str_detect(doc_id, "da_") ~ "data access",
+                             str_detect(doc_id, "de_") ~ "digital economy strategy",
+                             str_detect(doc_id, "dd_") ~ "digital delivery",
+                             str_detect(doc_id, "nbn_") ~ "nbn roll-out",
+                             str_detect(doc_id, "ts_") ~ "trade systems")) %>%
+  group_by(inquiry) %>%
+  count()
+  
+
+# word count per inquiry (sub_corpus)
+
+require(tidytext)
+
+word_stats <- clean_corpus %>% 
+  unnest_tokens(word, text) %>%
+  inner_join(inquiry_id) %>%
+  group_by(doc_id, inquiry) %>%
+  summarise(total_words = n()) %>%
+  group_by(inquiry) %>%
+  summarise(relevant_docs = n(), min_words = min(total_words), max_words = max(total_words), mean_words = mean(total_words)) %>%
+  left_join(total_docs) %>%
+  rename(total_docs = n) %>%
+  mutate(percent = relevant_docs/total_docs*100) %>%
+  select(inquiry, total_docs, relevant_docs, percent, min_words, max_words, mean_words)
+
 # create custom stop words
 
 custom_stopwords <- data.frame(word = c("government",
@@ -485,3 +516,4 @@ sent_all <- unigrams %>%
 s <- arrangeGrob(sent_ag, sent_da, sent_de, sent_dd, sent_nbn, sent_ts, sent_all, nrow = 3)
 
 ggsave("~/owncloud/digiscape/presentations/top10sentiments.pdf", s)
+

@@ -46,20 +46,6 @@ clean_corpus <- raw_corpus %>%
                    TRUE ~ str_detect(text, "agri|farm"))) 
 toc()
 
-# total number of documents in corpus
-
-nrow(clean_corpus %>% distinct(doc_id))
-
-doc_counts <- clean_corpus %>%
-  mutate(inquiry = case_when(str_detect(doc_id, "ag_") ~ "agricultural innovation",
-                             str_detect(doc_id, "da_") ~ "data access",
-                             str_detect(doc_id, "de_") ~ "digital economy strategy",
-                             str_detect(doc_id, "dd_") ~ "digital delivery",
-                             str_detect(doc_id, "nbn_") ~ "nbn roll-out",
-                             str_detect(doc_id, "ts_") ~ "trade systems")) %>%
-  group_by(inquiry) %>%
-  count()
-
 
 # Invoke sliding windows function to id skipgrams
 
