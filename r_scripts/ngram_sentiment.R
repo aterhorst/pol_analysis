@@ -88,6 +88,8 @@ word_stats <- clean_corpus %>%
   mutate(percent = relevant_docs/total_docs*100) %>%
   select(inquiry, total_docs, relevant_docs, percent, min_words, max_words, mean_words)
 
+write.csv(word_stats, "~/owncloud/digiscape/presentations/word_stat.csv", row.names = F)
+
 # create custom stop words
 
 custom_stopwords <- data.frame(word = c("government",

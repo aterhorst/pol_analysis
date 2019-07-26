@@ -12,7 +12,7 @@ require(tictoc)
 require(tidyverse)
 require(readtext)
 
-data_dir <- "~/ownCloud/pol_analysis/submissions"
+data_dir <- "/OSM/MEL/DPS_OI_Network/work/ownCloud/pol_analysis/submissions"
 
 tic("read pdfs")
 raw_corpus <- readtext(paste0(data_dir, "/*"))
@@ -27,7 +27,7 @@ clean_corpus <- raw_corpus %>%
   # use textclean functions
   mutate(text = replace_non_ascii(text), # get rid of weird characters
          text = replace_html(text), # remove html
-         text = replace_contraction(text), # remove apostrophes
+         text = replace_contraction(text), # replace contractions with long form
          text = replace_number(text, remove = TRUE), # take out numbers
          doc_id = str_squish(str_replace(doc_id, " .pdf", "")), 
          doc_id = str_squish(str_replace(doc_id, ".pdf", "")),
@@ -176,6 +176,8 @@ gamma_terms %>%
                      labels = percent_format()) +
   labs(x = NULL, y = expression(gamma)) +
   theme(text = element_text(size = 14))
+
+ggsave("/OSM/MEL/DPS_OI_Network/work/ownCloud/digiscape/presentations/top10topics.pdf")
 
 # list documents with spread of topic probabilities.
 

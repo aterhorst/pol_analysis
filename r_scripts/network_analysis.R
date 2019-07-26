@@ -136,6 +136,7 @@ angle <- as_tibble(cart2pol(lo)) %>% mutate(degree = phi * 180/pi)
 # generate plot
 
 require(ggraph)
+require(Cairo)
 
 net <- ggraph(similarity_ties, layout = "circle") +
   geom_edge_link() +
@@ -148,7 +149,7 @@ net <- ggraph(similarity_ties, layout = "circle") +
                                    lo[,1] == 1 ~angle$degree,
                                    TRUE ~ angle$degree - 180)) +
   labs(colour = "Top topic") + 
-  labs(alpha = "Gamma value") +
+  labs(alpha = "\u03B3 value") +
   guides(color = guide_legend(order = 1),
          alpha = guide_legend(order = 2)) +
   theme(panel.background = element_blank(),
@@ -160,4 +161,4 @@ net <- ggraph(similarity_ties, layout = "circle") +
         axis.ticks = element_blank()) +
   coord_cartesian(xlim=c(-1.275, 1.45), ylim=c(-1.275, 1.275))
 
-ggsave("~/owncloud/digiscape/presentations/network_analysis.pdf", net)
+ggsave(plot = net, "~/owncloud/digiscape/presentations/network_analysis.png", device = "png", type = "cairo", dpi = 300, height = 9.37, width = 11.2, units = "in")
