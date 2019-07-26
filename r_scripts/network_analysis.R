@@ -149,7 +149,8 @@ net <- ggraph(similarity_ties, layout = "circle") +
                                    lo[,1] == 1 ~angle$degree,
                                    TRUE ~ angle$degree - 180)) +
   labs(colour = "Top topic") + 
-  labs(alpha = "\u03B3 value") +
+  labs(alpha = expression(paste(gamma, " value"))) +
+  #labs(alpha = "\u03B3 value") +
   guides(color = guide_legend(order = 1),
          alpha = guide_legend(order = 2)) +
   theme(panel.background = element_blank(),
