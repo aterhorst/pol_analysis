@@ -161,7 +161,8 @@ comp_terms <- read.csv("https://raw.githubusercontent.com/aterhorst/pol_analysis
 dictionary <- as.data.frame(GradyAugmented, stringsAsFactors = F) %>% 
   select(word = GradyAugmented, everything()) %>%
   bind_rows(comp_terms) %>%
-  distinct(word)
+  distinct(word) %>%
+  bind_rows(data.frame(word = c("gm", "gmo"), stringsAsFactors = F))
 
 
 unigrams <- clean_corpus %>% 
@@ -393,6 +394,22 @@ bi_all <- bigrams %>%
 b <- arrangeGrob(bi_ag, bi_da, bi_de, bi_dd, bi_nbn, bi_ts, bi_all, nrow = 3)
 
 ggsave("~/owncloud/digiscape/presentations/top10bigrams.pdf", b)
+
+# plot wordcloud
+
+require(wordcloud)
+
+par(mfrow=c(1, 2), mar = c(0,0,0,0))
+
+unigrams %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 100, scale = c(3, 0.2)))
+
+bigrams %>%
+  unite(bigram, word1, word2, sep = " ") %>%
+  count(bigram) %>%
+  with(wordcloud(bigram, n, max.words = 50, scale = c(3, 0.2)))
+
 
 # plot top 10 positive and negative sentiments
 
